@@ -2423,6 +2423,20 @@ define Device/hc952
 endef
 TARGET_DEVICES += hc952
 
+define Device/fw40
+  $(Device/dsa-migration)
+  $(Device/uimage-lzma-loader)
+  IMAGE_SIZE := 32448k
+  DEVICE_VENDOR := Doonink
+  DEVICE_MODEL := FW40
+  DEVICE_VARIANT := 32M
+  DEVICE_PACKAGES := mod-usb-ledtrig-usbport\
+		kmod-mt7603 kmod-mt76x2 \
+		kmod-usb3
+  SUPPORTED_DEVICES +=fw40 doonink,fw40
+endef
+TARGET_DEVICES += fw40
+
 
 #define Device/hc841
 #  $(Device/dsa-migration)
