@@ -1,6 +1,6 @@
 #!/bin/sh
 . /lib/functions/procd.sh
-
+ 
 MODCNT=6
 
 ROOTER=/usr/lib/rooter
@@ -87,6 +87,19 @@ find_device() {
 		let COUNTER=COUNTER+1
 	done
 	retresult=0
+}
+
+find_empty() {
+	COUNTER=1
+	while [ $COUNTER -le $MODCNT ]; do
+		EMPTY=$(uci get modem.modem$COUNTER.empty)
+		if [ $EMPTY -eq 1 ]; then
+			remresult=$COUNTER
+			return
+		fi
+		let COUNTER=COUNTER+1
+	done
+	remresult=0
 }
 
 #
@@ -204,6 +217,8 @@ if [ "$ACTION" = add ]; then
 		exit 0
 	elif [ $uVid = 2357 -a $uPid = 0601 ]; then
 		exit 0
+	elif [ $uVid = 1782 -a $uPid = 4d00 ]; then
+		exit 0
 	elif [ $uVid = 0b95 -a $uPid = 772b ]; then
 		exit 0
 	elif [ $uVid = 0b95 -a $uPid = 1790 ]; then
@@ -216,7 +231,6 @@ if [ "$ACTION" = add ]; then
 		exit 0
 	fi
 
-	
 	DELAY=1
 	if [ -f /tmp/usbwait ]; then
 		log "Delay for previous modem $DEVICENAME"
@@ -229,8 +243,6 @@ if [ "$ACTION" = add ]; then
 		done
 	fi
 	echo "1" > /tmp/usbwait
-	log "Go $DEVICENAME"
-
 
 	bNumConfs=$(cat /sys/bus/usb/devices/$DEVICENAME/bNumConfigurations)
 	bNumIfs=$(cat /sys/bus/usb/devices/$DEVICENAME/bNumInterfaces)
@@ -283,50 +295,17 @@ if [ "$ACTION" = add ]; then
 
 	reinsert=0
 	find_device $DEVICENAME
-log "Device $DEVICENAME"
-	if [ $retresult -gt 0 ]; then
-		ACTIVE=$(uci get modem.modem$retresult.active)
-		if [ $ACTIVE = 1 ]; then
-			rm -f /tmp/usbwait
-			exit 0
-		else
-			IDP=$(uci get modem.modem$retresult.uPid)
-			IDV=$(uci get modem.modem$retresult.uVid)
-			if [ $uVid = $IDV -a $uPid = $IDP ]; then
-				reinsert=1
-				CURRMODEM=$retresult
-				MODSTART=$retresult
-				uci set modem.modem$CURRMODEM.empty=0
-				uci commit modem
-				WWANX=$(uci get modem.modem$CURRMODEM.wwan)
-				if [ -n "$WWANX" ]; then
-					WWAN=$WWANX
-					save_variables
-				fi
-				WDMNX=$(uci get modem.modem$CURRMODEM.wdm)
-				if [ -n "$WDMNX" ]; then
-					WDMN=$WDMNX
-					save_variables
-				fi
-			#else
-				#display_top; display "Reinsert of different Modem not allowed"; display_bottom
-				#rm -f /tmp/usbwait
-				#exit 0
-			fi
-		fi
+	find_empty
+	if [ "$remresult" = "0" ]; then
+		log "Exceeded Maximum Number of Modems"
+		exit 0
 	fi
+	log "CURRMODEM $remresult"
  
 	log "Add : $DEVICENAME: Manufacturer=${uMa:-?} Product=${uPr:-?} Serial=${uSe:-?} $uVid $uPid"
 
-	if [ $MODSTART -gt $MODCNT ]; then
-		display_top; display "Exceeded Maximun Number of Modems"; display_bottom
-		#exit 0
-	fi
-
 	if [ $reinsert = 0 ]; then
-		CURRMODEM=$MODSTART
-		MODSTART=`expr $MODSTART + 1`
-		save_variables
+		CURRMODEM=$remresult
 	fi
 	
 	if [ -e /tmp/gotpcie1 ]; then
@@ -485,7 +464,7 @@ log "Device $DEVICENAME"
 		uci set wizard.basic.detect="0"
 		uci commit wizard
 	fi
-	
+	rm -f /tmp/usbwait
 #
 # Handle specific modem models
 #
@@ -538,10 +517,6 @@ log "Device $DEVICENAME"
 		;;
 	"10"|"11"|"12"|"13"|"14"|"15"|"16" )
 		if [ "$retval" = "11" ]; then
-			log "Ignore GLAA"
-			uci set modem.modem$CURRMODEM.empty=1
-			uci commit modem
-			exit 0
 			if [ -e /dev/wwan0mbim0 ]; then
 				log "Connecting a MHI Modem"
 				uci set modem.modem$CURRMODEM.proto=91
@@ -601,6 +576,7 @@ if [ "$ACTION" = remove ]; then
 				$ROOTER/modem-led.sh $retresult 0
 			fi
 			uci set modem.modem$retresult.active=0
+			uci set modem.modem$retresult.empty=1
 			uci set modem.modem$retresult.connected=0
 			uci commit modem
 			if [ -e /etc/config/mwan3 ]; then
