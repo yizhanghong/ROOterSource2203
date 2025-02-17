@@ -203,6 +203,8 @@ if [ "$ACTION" = add ]; then
 		exit 0
 	elif [ $uVid = 0e8d -a $uPid = 2000 ]; then
 		exit 0
+	elif [ $uVid = 18d1 -a $uPid = 4ee7 ]; then
+		exit 0
 	elif [ $uVid = 2109 -a $uPid = 8822 ]; then
 		exit 0
 	fi
@@ -415,6 +417,9 @@ if [ "$ACTION" = add ]; then
 	fi
 	if [ $idV = 2cb7 -a $idP = 000b ]; then
 		retval=28
+	fi
+	if [ $idV != 12d1 -a $retval = 24 ]; then
+		retval=5
 	fi
 	display_top; display "ProtoFind returns : $retval"; display_bottom
 	rm -f /tmp/wdrv
